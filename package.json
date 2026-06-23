@@ -1,0 +1,44 @@
+{
+  "name": "@directiveai/cli",
+  "version": "0.0.2",
+  "type": "module",
+  "description": "The Directive command-line tool: coordinate AI agents from the terminal.",
+  "license": "Apache-2.0",
+  "homepage": "https://directive.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/directiveai/directive-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/directiveai/directive-cli/issues"
+  },
+  "keywords": ["directive", "ai-agents", "coordination", "cli"],
+  "bin": {
+    "directive": "dist/index.js"
+  },
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
+  "exports": {
+    ".": "./dist/cli.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
