@@ -104,11 +104,10 @@ export class DirectiveClient {
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
-      throw new ApiError(
-        res.status,
-        (json.error as string) ?? `http_${res.status}`,
-        json.message as string | undefined,
-      );
+      // Keep any extra body fields (e.g. subscription `status`, plan-limit `meter`)
+      // as `detail` so callers can render a precise message / exit code.
+      const { error, message, ...detail } = json;
+      throw new ApiError(res.status, (error as string) ?? `http_${res.status}`, message as string | undefined, detail);
     }
     return json as T;
   }

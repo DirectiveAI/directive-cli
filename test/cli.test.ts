@@ -231,6 +231,67 @@ describe("run — start (wrapper)", () => {
   });
 });
 
+describe("run — billing / 402 handling", () => {
+  const subRequired = () =>
+    fakeClient({
+      checkIn: vi.fn(async () => {
+        throw new ApiError(402, "subscription_required", undefined, { status: "free" });
+      }),
+    });
+
+  it("maps 402 subscription_required to exit 7 with a trial + billing message", async () => {
+    const { io, err } = captureIO();
+    expect(await run(["check-in", "--title", "X"], opts(subRequired(), io))).toBe(7);
+    const msg = err.join("\n");
+    expect(msg).toMatch(/no active Directive subscription \(status: free\)/);
+    expect(msg).toMatch(/free 14-day trial/);
+    expect(msg).toMatch(/https:\/\/app\.directive\.ai\/billing/);
+  });
+
+  it("subscription_required --json emits { error, message, status } on stdout", async () => {
+    const { io, out } = captureIO();
+    expect(await run(["check-in", "--title", "X", "--json"], opts(subRequired(), io))).toBe(7);
+    expect(out).toHaveLength(1);
+    const data = JSON.parse(out[0]);
+    expect(data).toMatchObject({ error: "subscription_required", status: "free" });
+    expect(data.message).toMatch(/billing/);
+  });
+
+  it("honors DIRECTIVE_APP_BASE for the billing link", async () => {
+    const { io, err } = captureIO();
+    const code = await run(
+      ["check-in", "--title", "X"],
+      opts(subRequired(), io, { env: { DIRECTIVE_APP_BASE: "https://staging.directive.ai" } }),
+    );
+    expect(code).toBe(7);
+    expect(err.join("\n")).toMatch(/https:\/\/staging\.directive\.ai\/billing/);
+  });
+
+  it("keeps plan_limit_exceeded on exit 6 (distinct from subscription_required)", async () => {
+    const { io, err } = captureIO();
+    const c = fakeClient({
+      checkIn: vi.fn(async () => {
+        throw new ApiError(402, "plan_limit_exceeded", undefined, { meter: "tasks", used: 100, limit: 100 });
+      }),
+    });
+    expect(await run(["check-in", "--title", "X"], opts(c, io))).toBe(6);
+    expect(err.join("\n")).toMatch(/limit is reached \(tasks: 100\/100\)/);
+  });
+
+  it("start aborts before running the wrapped command on subscription_required (exit 7)", async () => {
+    const { io } = captureIO();
+    const c = subRequired();
+    const spawnImpl = vi.fn<SpawnLike>(() => {
+      throw new Error("the wrapped command must not run when check-in is paywalled");
+    });
+    const code = await run(["start", "--title", "X", "--", "echo", "hi"], opts(c, io, { spawnImpl }));
+    expect(code).toBe(7);
+    expect(spawnImpl).not.toHaveBeenCalled();
+    expect(c.report).not.toHaveBeenCalled();
+    expect(loadActiveTask(dir)).toBeNull();
+  });
+});
+
 describe("run — --json output", () => {
   it("emits exactly one JSON object on stdout (human lines go to stderr)", async () => {
     const { io, out, err } = captureIO();
