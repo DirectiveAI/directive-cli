@@ -2,7 +2,13 @@ import { consoleIO, errorMessage, type IO } from "./io.js";
 import { makeOutput, type Output } from "./output.js";
 import { EXIT, exitCodeForApiError } from "./exit.js";
 import { ApiError, friendlyApiError } from "./lib/errors.js";
-import { DEFAULT_API_BASE, DirectiveClient, type CheckInBody, type ReportStatus, type UsageBody } from "./lib/client.js";
+import {
+  DEFAULT_API_BASE,
+  DirectiveClient,
+  type CheckInBody,
+  type ReportStatus,
+  type UsageBody,
+} from "./lib/client.js";
 import { configDir, credentialsFromEnv, loadCredentials, saveCredentials } from "./lib/config.js";
 import { runLogin, runLogout } from "./commands/login.js";
 import { runWhoami } from "./commands/whoami.js";
@@ -268,7 +274,13 @@ export async function run(argv: string[], overrides: RunOverrides = {}): Promise
         const client = makeClient();
         const agent = resolveAgent(args.flags, env, client, out);
         if (!agent.ok) return agent.code;
-        return await runHeartbeat({ client, out, configDir: dir, agentId: agent.agentId, taskId: str(args.flags.task) });
+        return await runHeartbeat({
+          client,
+          out,
+          configDir: dir,
+          agentId: agent.agentId,
+          taskId: str(args.flags.task),
+        });
       }
 
       case "report": {

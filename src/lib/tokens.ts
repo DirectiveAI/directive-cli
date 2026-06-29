@@ -44,7 +44,11 @@ export function exchangeAuthCode(
 }
 
 /** Exchange a refresh token for a fresh access (and refresh) token. */
-export function exchangeRefresh(apiBase: string, fetchImpl: typeof fetch, refreshToken: string): Promise<TokenResponse> {
+export function exchangeRefresh(
+  apiBase: string,
+  fetchImpl: typeof fetch,
+  refreshToken: string,
+): Promise<TokenResponse> {
   return postToken(apiBase, fetchImpl, { grant_type: "refresh_token", refresh_token: refreshToken });
 }
 
@@ -62,7 +66,10 @@ export interface DeviceAuthorization {
 }
 
 /** Start the device-authorization flow (RFC 8628) — the headless login fallback. */
-export async function requestDeviceAuthorization(apiBase: string, fetchImpl: typeof fetch): Promise<DeviceAuthorization> {
+export async function requestDeviceAuthorization(
+  apiBase: string,
+  fetchImpl: typeof fetch,
+): Promise<DeviceAuthorization> {
   const res = await fetchImpl(`${apiBase}/v1/cli/auth/device`, { method: "POST" });
   const json = (await res.json().catch(() => ({}))) as Partial<DeviceAuthorization> & { error?: string };
   if (!res.ok || !json.device_code || !json.user_code) {

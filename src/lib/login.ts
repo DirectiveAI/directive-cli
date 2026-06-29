@@ -144,9 +144,7 @@ export async function loginFlow(deps: LoginDeps): Promise<TokenResponse> {
       rejectCode(new Error("state mismatch or missing code"));
       return;
     }
-    res
-      .writeHead(200, { "content-type": "text/html" })
-      .end(successPage(new URL("/docs", deps.appBase).toString()));
+    res.writeHead(200, { "content-type": "text/html" }).end(successPage(new URL("/docs", deps.appBase).toString()));
     resolveCode(code);
   });
 
