@@ -73,12 +73,12 @@ describe("DirectiveClient", () => {
       expect(url).toBe("https://api.test/v1/tasks/check-in");
       return json({ status: "claimed", created: true, task: { id: "t1", title: "T" }, claim: { id: "c1" } });
     });
-    const res = await client.checkIn("agent1", { title: "T" });
+    const res = await client.checkIn("agent1", { project_id: "p1", title: "T" });
     expect(res.status).toBe("claimed");
     const headers = captured!.headers as Record<string, string>;
     expect(headers["x-directive-agent-id"]).toBe("agent1");
     expect(headers["content-type"]).toBe("application/json");
-    expect(JSON.parse(captured!.body as string)).toMatchObject({ title: "T" });
+    expect(JSON.parse(captured!.body as string)).toMatchObject({ project_id: "p1", title: "T" });
   });
 
   it("throws ApiError on a non-2xx response", async () => {

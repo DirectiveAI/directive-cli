@@ -1,6 +1,6 @@
 {
   "name": "@directiveai/cli",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "description": "The Directive command-line tool: coordinate AI agents from the terminal.",
   "license": "Apache-2.0",
