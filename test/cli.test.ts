@@ -39,14 +39,20 @@ function fakeClient(over: Partial<Record<keyof DirectiveClient, unknown>> = {}):
   const base = {
     isAuthenticated: () => true,
     agentId: () => "A1",
+    projectId: () => "P1",
     email: () => "a@b.co",
     setAgentId: vi.fn(),
+    setProjectId: vi.fn(),
     me: vi.fn(async () => ({
       user: { id: "u", email: "a@b.co", name: null },
       orgs: [{ id: "o1", name: "Org", slug: "o1", role: "owner", subscription: null }],
     })),
     listAgents: vi.fn(async () => ({ agents: [] })),
     createAgent: vi.fn(async () => ({ agent: { id: "newA", org_id: "o1", user_id: "u", name: "bot" } })),
+    listProjects: vi.fn(async () => ({
+      projects: [{ id: "P1", org_id: "o1", name: "Default Project", slug: "default", is_default: 1 }],
+    })),
+    createProject: vi.fn(async () => ({ project: { id: "newP", org_id: "o1", name: "proj", slug: "proj", is_default: 0 } })),
     checkIn: vi.fn(async () => ({
       status: "claimed",
       created: true,
@@ -134,14 +140,70 @@ describe("run — agents", () => {
   });
 });
 
+describe("run — projects", () => {
+  it("project list shows the projects, marking the current one", async () => {
+    const { io, out } = captureIO();
+    const c = fakeClient();
+    expect(await run(["project", "list", "--org", "o1"], opts(c, io))).toBe(0);
+    expect(c.listProjects).toHaveBeenCalledWith("o1");
+    expect(out.join("\n")).toMatch(/\* P1/); // current project marked
+  });
+
+  it("project create registers and sets the current project", async () => {
+    const { io, out } = captureIO();
+    const c = fakeClient();
+    expect(await run(["project", "create", "--org", "o1", "--name", "proj"], opts(c, io))).toBe(0);
+    expect(c.createProject).toHaveBeenCalledWith("o1", { name: "proj", slug: undefined, description: undefined });
+    expect(c.setProjectId).toHaveBeenCalledWith("newP");
+    expect(out.join("\n")).toMatch(/newP/);
+  });
+
+  it("project create requires --org and --name (usage, exit 2)", async () => {
+    const { io } = captureIO();
+    expect(await run(["project", "create", "--name", "x"], opts(fakeClient(), io))).toBe(2);
+    expect(await run(["project", "create", "--org", "o1"], opts(fakeClient(), io))).toBe(2);
+  });
+
+  it("project use sets the current project", async () => {
+    const { io } = captureIO();
+    const c = fakeClient();
+    expect(await run(["project", "use", "Pabc"], opts(c, io))).toBe(0);
+    expect(c.setProjectId).toHaveBeenCalledWith("Pabc");
+  });
+});
+
 describe("run — coordination loop", () => {
-  it("check-in claims and records the active task", async () => {
+  it("check-in claims and records the active task (using the current project)", async () => {
     const { io, out } = captureIO();
     const c = fakeClient();
     expect(await run(["check-in", "--title", "Fix the bug", "--tracker", "github"], opts(c, io))).toBe(0);
-    expect(c.checkIn).toHaveBeenCalledWith("A1", expect.objectContaining({ title: "Fix the bug", tracker: "github" }));
+    expect(c.checkIn).toHaveBeenCalledWith(
+      "A1",
+      expect.objectContaining({ project_id: "P1", title: "Fix the bug", tracker: "github" }),
+    );
     expect(loadActiveTask(dir)).toMatchObject({ task_id: "t1" });
     expect(out.join("\n")).toMatch(/claimed t1/i);
+  });
+
+  it("check-in honors an explicit --project over the current one", async () => {
+    const { io } = captureIO();
+    const c = fakeClient();
+    expect(await run(["check-in", "--title", "T", "--project", "Pflag"], opts(c, io))).toBe(0);
+    expect(c.checkIn).toHaveBeenCalledWith("A1", expect.objectContaining({ project_id: "Pflag" }));
+  });
+
+  it("check-in requires a project when none is configured (usage, exit 2)", async () => {
+    const { io, err } = captureIO();
+    const c = fakeClient({ projectId: () => undefined });
+    expect(await run(["check-in", "--title", "T"], opts(c, io))).toBe(2);
+    expect(err.join("\n")).toMatch(/no project/i);
+  });
+
+  it("check-in reads the project from DIRECTIVE_PROJECT_ID", async () => {
+    const { io } = captureIO();
+    const c = fakeClient({ projectId: () => undefined });
+    expect(await run(["check-in", "--title", "T"], opts(c, io, { env: { DIRECTIVE_PROJECT_ID: "Penv" } }))).toBe(0);
+    expect(c.checkIn).toHaveBeenCalledWith("A1", expect.objectContaining({ project_id: "Penv" }));
   });
 
   it("check-in returns code 4 when another agent holds it", async () => {

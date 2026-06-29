@@ -13,10 +13,11 @@ import { configDir, credentialsFromEnv, loadCredentials, saveCredentials } from 
 import { runLogin, runLogout } from "./commands/login.js";
 import { runWhoami } from "./commands/whoami.js";
 import { runAgentCreate, runAgentList } from "./commands/agent.js";
+import { runProjectCreate, runProjectList, runProjectUse } from "./commands/project.js";
 import { runCheckIn, runHeartbeat, runReport, runUsage } from "./commands/tasks.js";
 import { runStart, type SpawnLike } from "./commands/start.js";
 
-export const VERSION = "0.0.3";
+export const VERSION = "0.0.4";
 
 /** Canonical command + alias names the CLI dispatches (the skill is validated against this). */
 export const COMMANDS = [
@@ -24,6 +25,7 @@ export const COMMANDS = [
   "logout",
   "whoami",
   "agent",
+  "project",
   "check-in",
   "checkin",
   "heartbeat",
@@ -99,19 +101,28 @@ Agents
   agent create --org <id> --name <name>   Register an agent (becomes the default)
   agent list --org <id>                    List an org's agents
 
+Projects
+  project list --org <id>                  List the projects you belong to
+  project create --org <id> --name <name> [--slug <s>] [--description <d>]
+                                           Create a project (sets it as current)
+  project use <id>                         Set the current project for check-ins
+
 Coordination loop
-  check-in --title <t> [--tracker <github|jira|productboard|other>]
+  check-in --project <id> --title <t> [--tracker <github|jira|productboard|other>]
            [--external-id <id>] [--external-url <url>] [--description <d>]
-           [--dedup-key <k>]               Claim a task (dedup)
+           [--dedup-key <k>]               Claim a task (dedup). A project is
+                                           required: --project, DIRECTIVE_PROJECT_ID,
+                                           or 'project use'.
   heartbeat [--task <id>]                  Keep the active claim alive
   report --status <completed|blocked|abandoned|released> [--task <id>] [--note <n>]
   usage --input <n> --output <n> [--model <m>] [--cost <micro_usd>] [--task <id>]
-  start --title <t> [check-in opts] -- <command…>
+  start --project <id> --title <t> [check-in opts] -- <command…>
                                            Check in, heartbeat while the command
                                            runs, then report completed/abandoned
 
 Global
   --agent <id>                Act as this agent (or set DIRECTIVE_AGENT_ID)
+  --project <id>              Check in to this project (or set DIRECTIVE_PROJECT_ID)
   --json                      Emit one machine-readable JSON object on stdout
   --version, --help
 
@@ -169,13 +180,34 @@ function resolveAgent(
   return { ok: true, agentId: id };
 }
 
-function checkInBody(flags: Record<string, string | boolean>, out: Output): CheckInBody | null {
+type ProjectResolution = { ok: true; projectId: string } | { ok: false; code: number };
+
+/** Resolve the project to check in to: --project, else $DIRECTIVE_PROJECT_ID, else the current project. */
+function resolveProject(
+  flags: Record<string, string | boolean>,
+  env: NodeJS.ProcessEnv,
+  client: DirectiveClient,
+  out: Output,
+): ProjectResolution {
+  const id = str(flags.project) ?? env.DIRECTIVE_PROJECT_ID ?? client.projectId();
+  if (!id) {
+    out.fail(
+      "No project selected. Pass --project <id>, set DIRECTIVE_PROJECT_ID, or run `directive project use <id>`.",
+      { code: "missing_project" },
+    );
+    return { ok: false, code: EXIT.USAGE };
+  }
+  return { ok: true, projectId: id };
+}
+
+function checkInBody(flags: Record<string, string | boolean>, projectId: string, out: Output): CheckInBody | null {
   const title = str(flags.title);
   if (!title) {
     out.fail("Missing --title <text>.", { code: "usage" });
     return null;
   }
   return {
+    project_id: projectId,
     title,
     description: str(flags.description),
     tracker: str(flags.tracker) as CheckInBody["tracker"],
@@ -260,12 +292,37 @@ export async function run(argv: string[], overrides: RunOverrides = {}): Promise
         return EXIT.USAGE;
       }
 
+      case "project": {
+        const sub = args.positionals[0] ?? "list";
+        const client = makeClient();
+        if (!client.isAuthenticated()) {
+          out.fail("Not logged in. Run `directive login`.", { code: "not_authenticated" });
+          return EXIT.AUTH;
+        }
+        if (sub === "create") {
+          return await runProjectCreate({
+            client,
+            out,
+            orgId: str(args.flags.org),
+            name: str(args.flags.name),
+            slug: str(args.flags.slug),
+            description: str(args.flags.description),
+          });
+        }
+        if (sub === "list") return await runProjectList({ client, out, orgId: str(args.flags.org) });
+        if (sub === "use") return runProjectUse({ client, out, projectId: args.positionals[1] });
+        out.fail(`Unknown project subcommand: ${sub}`, { code: "usage" });
+        return EXIT.USAGE;
+      }
+
       case "checkin":
       case "check-in": {
         const client = makeClient();
         const agent = resolveAgent(args.flags, env, client, out);
         if (!agent.ok) return agent.code;
-        const body = checkInBody(args.flags, out);
+        const project = resolveProject(args.flags, env, client, out);
+        if (!project.ok) return project.code;
+        const body = checkInBody(args.flags, project.projectId, out);
         if (!body) return EXIT.USAGE;
         return await runCheckIn({ client, out, configDir: dir, agentId: agent.agentId, body });
       }
@@ -322,7 +379,9 @@ export async function run(argv: string[], overrides: RunOverrides = {}): Promise
         const client = makeClient();
         const agent = resolveAgent(args.flags, env, client, out);
         if (!agent.ok) return agent.code;
-        const body = checkInBody(args.flags, out);
+        const project = resolveProject(args.flags, env, client, out);
+        if (!project.ok) return project.code;
+        const body = checkInBody(args.flags, project.projectId, out);
         if (!body) return EXIT.USAGE;
         return await runStart({
           client,

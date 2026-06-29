@@ -39,8 +39,10 @@ export function exitCodeForApiError(err: ApiError): number {
     case "unknown_agent":
     case "agent_not_owned":
     case "not_a_member":
+    case "not_a_project_member":
       return EXIT.USAGE;
     case "task_not_found":
+    case "project_not_found":
     case "no_active_claim":
       return EXIT.NOT_FOUND;
     case "plan_limit_exceeded":

@@ -65,6 +65,17 @@ export class DirectiveClient {
     this.save(this.creds);
   }
 
+  projectId(): string | undefined {
+    return this.creds?.project_id ?? undefined;
+  }
+
+  /** Persist the default project id onto the stored credentials. */
+  setProjectId(projectId: string): void {
+    if (!this.creds) throw new ApiError(401, "not_authenticated");
+    this.creds = { ...this.creds, project_id: projectId };
+    this.save(this.creds);
+  }
+
   private async accessToken(): Promise<string> {
     if (!this.creds) throw new ApiError(401, "not_authenticated");
     if (this.creds.expires_at - REFRESH_SKEW_MS <= this.now()) await this.refresh();
@@ -125,6 +136,14 @@ export class DirectiveClient {
     return this.request("POST", `/v1/orgs/${orgId}/agents`, { body: { name } });
   }
 
+  listProjects(orgId: string): Promise<{ projects: ProjectSummary[] }> {
+    return this.request("GET", `/v1/orgs/${orgId}/projects`);
+  }
+
+  createProject(orgId: string, body: { name: string; slug?: string; description?: string }): Promise<{ project: ProjectSummary }> {
+    return this.request("POST", `/v1/orgs/${orgId}/projects`, { body });
+  }
+
   checkIn(agentId: string, body: CheckInBody): Promise<CheckInResult> {
     return this.request("POST", "/v1/tasks/check-in", { agentId, body });
   }
@@ -163,7 +182,19 @@ export interface TaskSummary {
   status: string;
 }
 
+export interface ProjectSummary {
+  id: string;
+  org_id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  is_default?: number;
+  role?: string;
+}
+
 export interface CheckInBody {
+  /** Required: every task belongs to a project. */
+  project_id: string;
   title: string;
   description?: string;
   tracker?: "github" | "jira" | "productboard" | "other";

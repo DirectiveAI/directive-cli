@@ -11,6 +11,8 @@ export interface Credentials {
   email?: string;
   /** The agent this CLI acts as by default (X-Directive-Agent-Id). */
   agent_id?: string;
+  /** The project this CLI checks in to by default (every task needs a project). */
+  project_id?: string;
 }
 
 /** The "current" task, so heartbeat/report/usage can default to it. */
@@ -71,6 +73,7 @@ export function credentialsFromEnv(env: NodeJS.ProcessEnv = process.env): Creden
     // token's age); with only an access token, assume it's fresh (no refresh path).
     expires_at: refresh ? 0 : Date.now() + 3_600_000,
     agent_id: env.DIRECTIVE_AGENT_ID?.trim() || undefined,
+    project_id: env.DIRECTIVE_PROJECT_ID?.trim() || undefined,
   };
 }
 
