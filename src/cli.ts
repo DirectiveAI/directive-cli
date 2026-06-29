@@ -16,7 +16,7 @@ import { runAgentCreate, runAgentList } from "./commands/agent.js";
 import { runCheckIn, runHeartbeat, runReport, runUsage } from "./commands/tasks.js";
 import { runStart, type SpawnLike } from "./commands/start.js";
 
-export const VERSION = "0.0.2";
+export const VERSION = "0.0.3";
 
 /** Canonical command + alias names the CLI dispatches (the skill is validated against this). */
 export const COMMANDS = [
