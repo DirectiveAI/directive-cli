@@ -120,8 +120,8 @@ Headless auth
   from a secret with no interactive login. See \`directive login --headless\`.
 
 Exit codes
-  0 ok · 1 error · 2 usage · 3 auth required · 4 already claimed ·
-  5 not found · 6 plan limit  (start/run propagate the wrapped command's code)`;
+  0 ok · 1 error · 2 usage · 3 auth required · 4 already claimed · 5 not found ·
+  6 plan limit · 7 subscription required  (start/run propagate the wrapped command's code)`;
 
 export interface RunOverrides {
   io?: IO;
@@ -342,7 +342,8 @@ export async function run(argv: string[], overrides: RunOverrides = {}): Promise
     }
   } catch (err) {
     if (err instanceof ApiError) {
-      out.fail(friendlyApiError(err), { code: err.code, status: err.status });
+      // `detail` (e.g. the subscription `status`) overrides the HTTP status in --json.
+      out.fail(friendlyApiError(err, appBase), { code: err.code, status: err.status, ...err.detail });
       return exitCodeForApiError(err);
     }
     out.fail(`Error: ${errorMessage(err)}`, { code: "error" });

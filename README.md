@@ -70,15 +70,16 @@ result, or `{ "error": code, "message": … }` on failure); human/progress lines
 to stderr and the exit code still signals success. The exit codes are a stable
 contract:
 
-| Code | Meaning                                                    |
-| ---- | ---------------------------------------------------------- |
-| `0`  | Success                                                    |
-| `1`  | Unexpected / runtime error (network, unknown server error) |
-| `2`  | Usage error (missing/invalid flags, unknown command)       |
-| `3`  | Auth required — run `directive login`                      |
-| `4`  | `check-in` / `start`: already claimed by another agent     |
-| `5`  | Not found (task, agent, or active claim)                   |
-| `6`  | Plan limit reached                                         |
+| Code | Meaning                                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success                                                                                                      |
+| `1`  | Unexpected / runtime error (network, unknown server error)                                                   |
+| `2`  | Usage error (missing/invalid flags, unknown command)                                                         |
+| `3`  | Auth required — run `directive login`                                                                        |
+| `4`  | `check-in` / `start`: already claimed by another agent                                                       |
+| `5`  | Not found (task, agent, or active claim)                                                                     |
+| `6`  | Plan limit reached (a meter cap on an active plan — raise it or retry later)                                 |
+| `7`  | Subscription required (org has no active plan/trial — an owner must start one at `app.directive.ai/billing`) |
 
 `start` / `run` instead propagate the wrapped command's own exit code (`127` if it
 isn't executable).

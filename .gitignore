@@ -3,3 +3,5 @@ node_modules/
 *.tsbuildinfo
 /directive-cli.iml
 /.idea/
+/.claude/
+CLAUDE.md

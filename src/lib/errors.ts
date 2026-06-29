@@ -1,17 +1,27 @@
-/** An error from the Directive API (non-2xx response), carrying the status + code. */
+/**
+ * An error from the Directive API (non-2xx response), carrying the HTTP status,
+ * the server's error `code`, and any extra body fields (`detail`) — e.g. the
+ * subscription `status` on a 402, or the `meter`/`used`/`limit` on a plan-limit hit.
+ */
 export class ApiError extends Error {
   constructor(
     public status: number,
     public code: string,
     message?: string,
+    public detail: Record<string, unknown> = {},
   ) {
     super(message ?? code);
     this.name = "ApiError";
   }
 }
 
-/** Map an API error code to a friendly, action-oriented message for the terminal. */
-export function friendlyApiError(err: ApiError): string {
+/**
+ * Map an API error code to a friendly, action-oriented message for the terminal.
+ * `appBase` (honoring `DIRECTIVE_APP_BASE`) builds the billing URL so the link
+ * matches the environment the CLI is pointed at.
+ */
+export function friendlyApiError(err: ApiError, appBase: string): string {
+  const billingUrl = new URL("/billing", appBase).toString();
   switch (err.code) {
     case "not_authenticated":
     case "unauthenticated":
@@ -28,8 +38,18 @@ export function friendlyApiError(err: ApiError): string {
       return "No active claim for that task held by this agent.";
     case "task_not_found":
       return "That task wasn't found in this org.";
-    case "plan_limit_exceeded":
-      return "Your plan's task limit is reached. Upgrade at app.directive.ai/app/billing.";
+    case "subscription_required": {
+      const status = typeof err.detail.status === "string" ? err.detail.status : "none";
+      return (
+        `This organization has no active Directive subscription (status: ${status}), so coordination is paused. ` +
+        `An org owner needs to start a plan — there's a free 14-day trial — at ${billingUrl}. Once that's done, retry.`
+      );
+    }
+    case "plan_limit_exceeded": {
+      const { meter, used, limit } = err.detail;
+      const detail = meter ? ` (${meter}: ${used}/${limit})` : "";
+      return `Your plan's task limit is reached${detail}. Raise it or upgrade at ${billingUrl}.`;
+    }
     default:
       return err.message || `Request failed (${err.status} ${err.code}).`;
   }

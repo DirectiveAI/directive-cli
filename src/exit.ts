@@ -10,7 +10,8 @@ import { ApiError } from "./lib/errors.js";
  *   3  auth required (not logged in, token invalid/expired, account not provisioned)
  *   4  already claimed by another agent (check-in / start)
  *   5  not found (task, agent, or active claim)
- *   6  plan limit reached
+ *   6  plan limit reached (a meter cap on an active plan)
+ *   7  subscription required (the org has no active plan or trial)
  *
  * `start`/`run` instead propagate the wrapped command's own exit code (and 127 if
  * it isn't executable); the codes above only apply to its own check-in/report step.
@@ -23,6 +24,7 @@ export const EXIT = {
   ALREADY_CLAIMED: 4,
   NOT_FOUND: 5,
   PLAN_LIMIT: 6,
+  SUBSCRIPTION_REQUIRED: 7,
 } as const;
 
 /** Map an API error to the exit code that best describes it (see EXIT). */
@@ -43,6 +45,8 @@ export function exitCodeForApiError(err: ApiError): number {
       return EXIT.NOT_FOUND;
     case "plan_limit_exceeded":
       return EXIT.PLAN_LIMIT;
+    case "subscription_required":
+      return EXIT.SUBSCRIPTION_REQUIRED;
     default:
       return EXIT.ERROR;
   }
