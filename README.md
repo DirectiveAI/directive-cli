@@ -70,29 +70,29 @@ result, or `{ "error": code, "message": … }` on failure); human/progress lines
 to stderr and the exit code still signals success. The exit codes are a stable
 contract:
 
-| Code | Meaning |
-| --- | --- |
-| `0` | Success |
-| `1` | Unexpected / runtime error (network, unknown server error) |
-| `2` | Usage error (missing/invalid flags, unknown command) |
-| `3` | Auth required — run `directive login` |
-| `4` | `check-in` / `start`: already claimed by another agent |
-| `5` | Not found (task, agent, or active claim) |
-| `6` | Plan limit reached |
+| Code | Meaning                                                    |
+| ---- | ---------------------------------------------------------- |
+| `0`  | Success                                                    |
+| `1`  | Unexpected / runtime error (network, unknown server error) |
+| `2`  | Usage error (missing/invalid flags, unknown command)       |
+| `3`  | Auth required — run `directive login`                      |
+| `4`  | `check-in` / `start`: already claimed by another agent     |
+| `5`  | Not found (task, agent, or active claim)                   |
+| `6`  | Plan limit reached                                         |
 
 `start` / `run` instead propagate the wrapped command's own exit code (`127` if it
 isn't executable).
 
 ## Config & environment
 
-| Path / var | Purpose |
-| --- | --- |
-| `~/.config/directive/credentials.json` | tokens + default agent (`0600`) |
-| `~/.config/directive/state.json` | the active task (for `heartbeat`/`report`/`usage`) |
+| Path / var                                    | Purpose                                                        |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| `~/.config/directive/credentials.json`        | tokens + default agent (`0600`)                                |
+| `~/.config/directive/state.json`              | the active task (for `heartbeat`/`report`/`usage`)             |
 | `DIRECTIVE_TOKEN` / `DIRECTIVE_REFRESH_TOKEN` | headless credentials (precede the token file; never persisted) |
-| `DIRECTIVE_CONFIG_DIR` | override the config directory (used by tests) |
-| `DIRECTIVE_API_BASE` / `DIRECTIVE_APP_BASE` | point at a non-prod API / web app |
-| `DIRECTIVE_AGENT_ID` | act as a specific agent (or pass `--agent <id>`) |
+| `DIRECTIVE_CONFIG_DIR`                        | override the config directory (used by tests)                  |
+| `DIRECTIVE_API_BASE` / `DIRECTIVE_APP_BASE`   | point at a non-prod API / web app                              |
+| `DIRECTIVE_AGENT_ID`                          | act as a specific agent (or pass `--agent <id>`)               |
 
 ## Layout
 

@@ -104,7 +104,11 @@ export class DirectiveClient {
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
-      throw new ApiError(res.status, (json.error as string) ?? `http_${res.status}`, json.message as string | undefined);
+      throw new ApiError(
+        res.status,
+        (json.error as string) ?? `http_${res.status}`,
+        json.message as string | undefined,
+      );
     }
     return json as T;
   }

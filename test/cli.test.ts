@@ -47,7 +47,12 @@ function fakeClient(over: Partial<Record<keyof DirectiveClient, unknown>> = {}):
     })),
     listAgents: vi.fn(async () => ({ agents: [] })),
     createAgent: vi.fn(async () => ({ agent: { id: "newA", org_id: "o1", user_id: "u", name: "bot" } })),
-    checkIn: vi.fn(async () => ({ status: "claimed", created: true, task: { id: "t1", title: "T", status: "in_progress" }, claim: { id: "c1" } })),
+    checkIn: vi.fn(async () => ({
+      status: "claimed",
+      created: true,
+      task: { id: "t1", title: "T", status: "in_progress" },
+      claim: { id: "c1" },
+    })),
     heartbeat: vi.fn(async () => ({ claim: {} })),
     report: vi.fn(async () => ({ task: { id: "t1", title: "T", status: "completed" } })),
     reportUsage: vi.fn(async () => ({ usage: {} })),
@@ -142,7 +147,12 @@ describe("run — coordination loop", () => {
   it("check-in returns code 4 when another agent holds it", async () => {
     const { io } = captureIO();
     const c = fakeClient({
-      checkIn: vi.fn(async () => ({ status: "already_claimed", created: false, task: { id: "t9", title: "X", status: "in_progress" }, claim: null })),
+      checkIn: vi.fn(async () => ({
+        status: "already_claimed",
+        created: false,
+        task: { id: "t9", title: "X", status: "in_progress" },
+        claim: null,
+      })),
     });
     expect(await run(["check-in", "--title", "X"], opts(c, io))).toBe(4);
   });
@@ -178,7 +188,11 @@ describe("run — coordination loop", () => {
 
   it("surfaces a friendly API error and maps it to an exit code (not found, exit 5)", async () => {
     const { io, err } = captureIO();
-    const c = fakeClient({ heartbeat: vi.fn(async () => { throw new ApiError(404, "no_active_claim"); }) });
+    const c = fakeClient({
+      heartbeat: vi.fn(async () => {
+        throw new ApiError(404, "no_active_claim");
+      }),
+    });
     expect(await run(["heartbeat", "--task", "t1"], opts(c, io))).toBe(5);
     expect(err.join("\n")).toMatch(/no active claim/i);
   });
@@ -238,7 +252,12 @@ describe("run — --json output", () => {
   it("already-claimed --json keeps exit 4 with a structured body", async () => {
     const { io, out } = captureIO();
     const c = fakeClient({
-      checkIn: vi.fn(async () => ({ status: "already_claimed", created: false, task: { id: "t9", title: "X", status: "in_progress" }, claim: null })),
+      checkIn: vi.fn(async () => ({
+        status: "already_claimed",
+        created: false,
+        task: { id: "t9", title: "X", status: "in_progress" },
+        claim: null,
+      })),
     });
     expect(await run(["check-in", "--title", "X", "--json"], opts(c, io))).toBe(4);
     expect(JSON.parse(out[0])).toMatchObject({ status: "already_claimed", task: { id: "t9" } });

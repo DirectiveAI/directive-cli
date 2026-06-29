@@ -88,7 +88,12 @@ describe("DirectiveClient", () => {
   });
 
   it("throws not_authenticated when there are no credentials", async () => {
-    const client = new DirectiveClient({ apiBase: "https://api.test", load: () => null, save: () => {}, fetchImpl: vi.fn() as unknown as typeof fetch });
+    const client = new DirectiveClient({
+      apiBase: "https://api.test",
+      load: () => null,
+      save: () => {},
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+    });
     await expect(client.me()).rejects.toMatchObject({ code: "not_authenticated" });
   });
 });
