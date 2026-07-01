@@ -65,6 +65,17 @@ export class DirectiveClient {
     this.save(this.creds);
   }
 
+  orgId(): string | undefined {
+    return this.creds?.org_id ?? undefined;
+  }
+
+  /** Persist the current org id onto the stored credentials. */
+  setOrgId(orgId: string): void {
+    if (!this.creds) throw new ApiError(401, "not_authenticated");
+    this.creds = { ...this.creds, org_id: orgId };
+    this.save(this.creds);
+  }
+
   projectId(): string | undefined {
     return this.creds?.project_id ?? undefined;
   }
@@ -128,6 +139,12 @@ export class DirectiveClient {
     return this.request("GET", "/v1/me");
   }
 
+  /** The orgs you belong to (sourced from `/v1/me`, which already carries them). */
+  async listOrgs(): Promise<{ orgs: OrgSummary[] }> {
+    const { orgs } = await this.me();
+    return { orgs };
+  }
+
   listAgents(orgId: string): Promise<{ agents: AgentSummary[] }> {
     return this.request("GET", `/v1/orgs/${orgId}/agents`);
   }
@@ -140,7 +157,10 @@ export class DirectiveClient {
     return this.request("GET", `/v1/orgs/${orgId}/projects`);
   }
 
-  createProject(orgId: string, body: { name: string; slug?: string; description?: string }): Promise<{ project: ProjectSummary }> {
+  createProject(
+    orgId: string,
+    body: { name: string; slug?: string; description?: string },
+  ): Promise<{ project: ProjectSummary }> {
     return this.request("POST", `/v1/orgs/${orgId}/projects`, { body });
   }
 

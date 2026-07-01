@@ -13,6 +13,7 @@ import { configDir, credentialsFromEnv, loadCredentials, saveCredentials } from 
 import { runLogin, runLogout } from "./commands/login.js";
 import { runWhoami } from "./commands/whoami.js";
 import { runAgentCreate, runAgentList } from "./commands/agent.js";
+import { runOrgList, runOrgUse } from "./commands/org.js";
 import { runProjectCreate, runProjectList, runProjectUse } from "./commands/project.js";
 import { runCheckIn, runHeartbeat, runReport, runUsage } from "./commands/tasks.js";
 import { runStart, type SpawnLike } from "./commands/start.js";
@@ -24,6 +25,7 @@ export const COMMANDS = [
   "login",
   "logout",
   "whoami",
+  "org",
   "agent",
   "project",
   "check-in",
@@ -95,17 +97,25 @@ Auth
   login [--headless]          Sign in via your browser (OAuth + PKCE).
                               --headless uses a device code (CI / no browser).
   logout                      Forget the stored tokens
-  whoami                      Show the account, its orgs, and the active task
+  whoami                      Show the account, its orgs, and current selections
+
+Organizations
+  org list                                 List the orgs you belong to
+  org use <id>                             Set the current org (used by the
+                                           org-scoped commands below)
 
 Agents
-  agent create --org <id> --name <name>   Register an agent (becomes the default)
-  agent list --org <id>                    List an org's agents
+  agent create [--org <id>] --name <name>  Register an agent (becomes the default)
+  agent list [--org <id>]                  List an org's agents
 
 Projects
-  project list --org <id>                  List the projects you belong to
-  project create --org <id> --name <name> [--slug <s>] [--description <d>]
+  project list [--org <id>]                List the projects you belong to
+  project create [--org <id>] --name <name> [--slug <s>] [--description <d>]
                                            Create a project (sets it as current)
   project use <id>                         Set the current project for check-ins
+
+  Org-scoped commands default to the current org: --org, then DIRECTIVE_ORG_ID,
+  then 'org use'.
 
 Coordination loop
   check-in --project <id> --title <t> [--tracker <github|jira|productboard|other>]
@@ -122,6 +132,7 @@ Coordination loop
 
 Global
   --agent <id>                Act as this agent (or set DIRECTIVE_AGENT_ID)
+  --org <id>                  Target this org (or set DIRECTIVE_ORG_ID)
   --project <id>              Check in to this project (or set DIRECTIVE_PROJECT_ID)
   --json                      Emit one machine-readable JSON object on stdout
   --version, --help
@@ -178,6 +189,25 @@ function resolveAgent(
     return { ok: false, code: EXIT.USAGE };
   }
   return { ok: true, agentId: id };
+}
+
+type OrgResolution = { ok: true; orgId: string } | { ok: false; code: number };
+
+/** Resolve the org for org-scoped commands: --org, else $DIRECTIVE_ORG_ID, else the current org. */
+function resolveOrg(
+  flags: Record<string, string | boolean>,
+  env: NodeJS.ProcessEnv,
+  client: DirectiveClient,
+  out: Output,
+): OrgResolution {
+  const id = str(flags.org) ?? env.DIRECTIVE_ORG_ID ?? client.orgId();
+  if (!id) {
+    out.fail("No org selected. Pass --org <id>, set DIRECTIVE_ORG_ID, or run `directive org use <id>`.", {
+      code: "missing_org",
+    });
+    return { ok: false, code: EXIT.USAGE };
+  }
+  return { ok: true, orgId: id };
 }
 
 type ProjectResolution = { ok: true; projectId: string } | { ok: false; code: number };
@@ -281,13 +311,34 @@ export async function run(argv: string[], overrides: RunOverrides = {}): Promise
       case "whoami":
         return await runWhoami({ client: makeClient(), out, configDir: dir });
 
+      case "org": {
+        const sub = args.positionals[0] ?? "list";
+        const client = makeClient();
+        if (!client.isAuthenticated()) {
+          out.fail("Not logged in. Run `directive login`.", { code: "not_authenticated" });
+          return EXIT.AUTH;
+        }
+        if (sub === "list") return await runOrgList({ client, out });
+        if (sub === "use") return runOrgUse({ client, out, orgId: args.positionals[1] });
+        out.fail(`Unknown org subcommand: ${sub}`, { code: "usage" });
+        return EXIT.USAGE;
+      }
+
       case "agent": {
         const sub = args.positionals[0] ?? "list";
         const client = makeClient();
-        if (sub === "create") {
-          return await runAgentCreate({ client, out, orgId: str(args.flags.org), name: str(args.flags.name) });
+        if (!client.isAuthenticated()) {
+          out.fail("Not logged in. Run `directive login`.", { code: "not_authenticated" });
+          return EXIT.AUTH;
         }
-        if (sub === "list") return await runAgentList({ client, out, orgId: str(args.flags.org) });
+        if (sub === "create" || sub === "list") {
+          const org = resolveOrg(args.flags, env, client, out);
+          if (!org.ok) return org.code;
+          if (sub === "create") {
+            return await runAgentCreate({ client, out, orgId: org.orgId, name: str(args.flags.name) });
+          }
+          return await runAgentList({ client, out, orgId: org.orgId });
+        }
         out.fail(`Unknown agent subcommand: ${sub}`, { code: "usage" });
         return EXIT.USAGE;
       }
@@ -299,18 +350,22 @@ export async function run(argv: string[], overrides: RunOverrides = {}): Promise
           out.fail("Not logged in. Run `directive login`.", { code: "not_authenticated" });
           return EXIT.AUTH;
         }
-        if (sub === "create") {
-          return await runProjectCreate({
-            client,
-            out,
-            orgId: str(args.flags.org),
-            name: str(args.flags.name),
-            slug: str(args.flags.slug),
-            description: str(args.flags.description),
-          });
-        }
-        if (sub === "list") return await runProjectList({ client, out, orgId: str(args.flags.org) });
         if (sub === "use") return runProjectUse({ client, out, projectId: args.positionals[1] });
+        if (sub === "create" || sub === "list") {
+          const org = resolveOrg(args.flags, env, client, out);
+          if (!org.ok) return org.code;
+          if (sub === "create") {
+            return await runProjectCreate({
+              client,
+              out,
+              orgId: org.orgId,
+              name: str(args.flags.name),
+              slug: str(args.flags.slug),
+              description: str(args.flags.description),
+            });
+          }
+          return await runProjectList({ client, out, orgId: org.orgId });
+        }
         out.fail(`Unknown project subcommand: ${sub}`, { code: "usage" });
         return EXIT.USAGE;
       }

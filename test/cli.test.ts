@@ -39,12 +39,17 @@ function fakeClient(over: Partial<Record<keyof DirectiveClient, unknown>> = {}):
   const base = {
     isAuthenticated: () => true,
     agentId: () => "A1",
+    orgId: () => undefined,
     projectId: () => "P1",
     email: () => "a@b.co",
     setAgentId: vi.fn(),
+    setOrgId: vi.fn(),
     setProjectId: vi.fn(),
     me: vi.fn(async () => ({
       user: { id: "u", email: "a@b.co", name: null },
+      orgs: [{ id: "o1", name: "Org", slug: "o1", role: "owner", subscription: null }],
+    })),
+    listOrgs: vi.fn(async () => ({
       orgs: [{ id: "o1", name: "Org", slug: "o1", role: "owner", subscription: null }],
     })),
     listAgents: vi.fn(async () => ({ agents: [] })),
@@ -52,7 +57,9 @@ function fakeClient(over: Partial<Record<keyof DirectiveClient, unknown>> = {}):
     listProjects: vi.fn(async () => ({
       projects: [{ id: "P1", org_id: "o1", name: "Default Project", slug: "default", is_default: 1 }],
     })),
-    createProject: vi.fn(async () => ({ project: { id: "newP", org_id: "o1", name: "proj", slug: "proj", is_default: 0 } })),
+    createProject: vi.fn(async () => ({
+      project: { id: "newP", org_id: "o1", name: "proj", slug: "proj", is_default: 0 },
+    })),
     checkIn: vi.fn(async () => ({
       status: "claimed",
       created: true,
@@ -124,6 +131,34 @@ describe("run — auth", () => {
   });
 });
 
+describe("run — orgs", () => {
+  it("org list shows the orgs, marking the current one", async () => {
+    const { io, out } = captureIO();
+    const c = fakeClient({ orgId: () => "o1" });
+    expect(await run(["org", "list"], opts(c, io))).toBe(0);
+    expect(c.listOrgs).toHaveBeenCalled();
+    expect(out.join("\n")).toMatch(/\* o1/); // current org marked
+  });
+
+  it("org use sets the current org", async () => {
+    const { io } = captureIO();
+    const c = fakeClient();
+    expect(await run(["org", "use", "oXYZ"], opts(c, io))).toBe(0);
+    expect(c.setOrgId).toHaveBeenCalledWith("oXYZ");
+  });
+
+  it("org use requires an id (usage, exit 2)", async () => {
+    const { io, err } = captureIO();
+    expect(await run(["org", "use"], opts(fakeClient(), io))).toBe(2);
+    expect(err.join("\n")).toMatch(/org id/i);
+  });
+
+  it("org commands fail cleanly when logged out (auth, exit 3)", async () => {
+    const { io } = captureIO();
+    expect(await run(["org", "list"], opts(fakeClient({ isAuthenticated: () => false }), io))).toBe(3);
+  });
+});
+
 describe("run — agents", () => {
   it("agent create registers and sets the default", async () => {
     const { io, out } = captureIO();
@@ -133,7 +168,22 @@ describe("run — agents", () => {
     expect(c.setAgentId).toHaveBeenCalledWith("newA");
     expect(out.join("\n")).toMatch(/newA/);
   });
-  it("agent create requires --org (usage, exit 2)", async () => {
+
+  it("agent list uses the current org when --org is omitted", async () => {
+    const { io } = captureIO();
+    const c = fakeClient({ orgId: () => "ocur" });
+    expect(await run(["agent", "list"], opts(c, io))).toBe(0);
+    expect(c.listAgents).toHaveBeenCalledWith("ocur");
+  });
+
+  it("agent list reads the org from DIRECTIVE_ORG_ID", async () => {
+    const { io } = captureIO();
+    const c = fakeClient();
+    expect(await run(["agent", "list"], opts(c, io, { env: { DIRECTIVE_ORG_ID: "oenv" } }))).toBe(0);
+    expect(c.listAgents).toHaveBeenCalledWith("oenv");
+  });
+
+  it("agent create requires an org (usage, exit 2)", async () => {
     const { io, err } = captureIO();
     expect(await run(["agent", "create", "--name", "bot"], opts(fakeClient(), io))).toBe(2);
     expect(err.join("\n")).toMatch(/--org/);
@@ -147,6 +197,26 @@ describe("run — projects", () => {
     expect(await run(["project", "list", "--org", "o1"], opts(c, io))).toBe(0);
     expect(c.listProjects).toHaveBeenCalledWith("o1");
     expect(out.join("\n")).toMatch(/\* P1/); // current project marked
+  });
+
+  it("project list uses the current org when --org is omitted", async () => {
+    const { io } = captureIO();
+    const c = fakeClient({ orgId: () => "ocur" });
+    expect(await run(["project", "list"], opts(c, io))).toBe(0);
+    expect(c.listProjects).toHaveBeenCalledWith("ocur");
+  });
+
+  it("an explicit --org overrides the current org", async () => {
+    const { io } = captureIO();
+    const c = fakeClient({ orgId: () => "ocur" });
+    expect(await run(["project", "list", "--org", "oflag"], opts(c, io))).toBe(0);
+    expect(c.listProjects).toHaveBeenCalledWith("oflag");
+  });
+
+  it("project list fails when no org is selected (usage, exit 2)", async () => {
+    const { io, err } = captureIO();
+    expect(await run(["project", "list"], opts(fakeClient(), io))).toBe(2);
+    expect(err.join("\n")).toMatch(/no org selected/i);
   });
 
   it("project create registers and sets the current project", async () => {
