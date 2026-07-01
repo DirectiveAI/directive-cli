@@ -2,12 +2,8 @@ import type { Output } from "../output.js";
 import { EXIT } from "../exit.js";
 import type { DirectiveClient } from "../lib/client.js";
 
-/** `directive project list --org <id>` — the projects you belong to in an org. */
-export async function runProjectList(d: { client: DirectiveClient; out: Output; orgId?: string }): Promise<number> {
-  if (!d.orgId) {
-    d.out.fail("Missing --org <id>. Run `directive whoami` to list your orgs.", { code: "usage" });
-    return EXIT.USAGE;
-  }
+/** `directive project list` — the projects you belong to in the current org. */
+export async function runProjectList(d: { client: DirectiveClient; out: Output; orgId: string }): Promise<number> {
   const { projects } = await d.client.listProjects(d.orgId);
   const current = d.client.projectId();
   if (projects.length === 0) {
@@ -20,21 +16,17 @@ export async function runProjectList(d: { client: DirectiveClient; out: Output; 
 }
 
 /**
- * `directive project create --org <id> --name <name> [--slug <s>] [--description <d>]`
- * — create a project and set it as this CLI's current project.
+ * `directive project create [--org <id>] --name <name> [--slug <s>] [--description <d>]`
+ * — create a project in the current org and set it as this CLI's current project.
  */
 export async function runProjectCreate(d: {
   client: DirectiveClient;
   out: Output;
-  orgId?: string;
+  orgId: string;
   name?: string;
   slug?: string;
   description?: string;
 }): Promise<number> {
-  if (!d.orgId) {
-    d.out.fail("Missing --org <id>. Run `directive whoami` to list your orgs.", { code: "usage" });
-    return EXIT.USAGE;
-  }
   if (!d.name) {
     d.out.fail("Missing --name <name>.", { code: "usage" });
     return EXIT.USAGE;

@@ -53,10 +53,15 @@ describe("credentialsFromEnv", () => {
   });
 
   it("forces an immediate refresh when a refresh token is supplied", () => {
-    const c = credentialsFromEnv({ DIRECTIVE_REFRESH_TOKEN: "rt", DIRECTIVE_AGENT_ID: "A9" } as NodeJS.ProcessEnv)!;
+    const c = credentialsFromEnv({
+      DIRECTIVE_REFRESH_TOKEN: "rt",
+      DIRECTIVE_AGENT_ID: "A9",
+      DIRECTIVE_ORG_ID: "O9",
+    } as NodeJS.ProcessEnv)!;
     expect(c.refresh_token).toBe("rt");
     expect(c.expires_at).toBe(0); // already-expired → client refreshes on first use
     expect(c.agent_id).toBe("A9");
+    expect(c.org_id).toBe("O9");
   });
 });
 

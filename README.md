@@ -18,7 +18,8 @@ Requires Node >= 20. Released under [Apache-2.0](./LICENSE).
 ```bash
 directive login                       # browser OAuth (auth-code + PKCE loopback)
 directive whoami                      # account + orgs
-directive agent create --org <id> --name "My agent"
+directive org use <id>                # pick the current org (org list shows them)
+directive agent create --name "My agent"   # registered in the current org
 
 # the coordination loop
 directive check-in --title "Fix flaky test" --tracker github --external-id owner/repo#42
@@ -86,14 +87,16 @@ isn't executable).
 
 ## Config & environment
 
-| Path / var                                    | Purpose                                                        |
-| --------------------------------------------- | -------------------------------------------------------------- |
-| `~/.config/directive/credentials.json`        | tokens + default agent (`0600`)                                |
-| `~/.config/directive/state.json`              | the active task (for `heartbeat`/`report`/`usage`)             |
-| `DIRECTIVE_TOKEN` / `DIRECTIVE_REFRESH_TOKEN` | headless credentials (precede the token file; never persisted) |
-| `DIRECTIVE_CONFIG_DIR`                        | override the config directory (used by tests)                  |
-| `DIRECTIVE_API_BASE` / `DIRECTIVE_APP_BASE`   | point at a non-prod API / web app                              |
-| `DIRECTIVE_AGENT_ID`                          | act as a specific agent (or pass `--agent <id>`)               |
+| Path / var                                    | Purpose                                                         |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| `~/.config/directive/credentials.json`        | tokens + default agent / current org / current project (`0600`) |
+| `~/.config/directive/state.json`              | the active task (for `heartbeat`/`report`/`usage`)              |
+| `DIRECTIVE_TOKEN` / `DIRECTIVE_REFRESH_TOKEN` | headless credentials (precede the token file; never persisted)  |
+| `DIRECTIVE_CONFIG_DIR`                        | override the config directory (used by tests)                   |
+| `DIRECTIVE_API_BASE` / `DIRECTIVE_APP_BASE`   | point at a non-prod API / web app                               |
+| `DIRECTIVE_AGENT_ID`                          | act as a specific agent (or pass `--agent <id>`)                |
+| `DIRECTIVE_ORG_ID`                            | target a specific org (or pass `--org <id>`)                    |
+| `DIRECTIVE_PROJECT_ID`                        | check in to a specific project (or pass `--project <id>`)       |
 
 ## Layout
 
@@ -113,7 +116,7 @@ src/
     device.ts         # headless device-authorization flow (RFC 8628)
     browser.ts        # best-effort "open URL"
     errors.ts         # ApiError + friendly messages
-  commands/           # login, whoami, agent, tasks (check-in/heartbeat/report/usage), start
+  commands/           # login, whoami, org, agent, project, tasks (check-in/heartbeat/report/usage), start
 test/                 # Vitest (node)
 ```
 
