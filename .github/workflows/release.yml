@@ -3,7 +3,9 @@ name: Release
 # Publishes @directiveai/cli to npm. Triggered by pushing a v* tag
 # (e.g. `git tag v0.0.2 && git push origin v0.0.2`) or manually from the
 # Actions tab / API (workflow_dispatch). Both publish the version currently
-# in package.json, so bump it first; npm rejects republishing a version.
+# in package.json, so bump it first; npm rejects republishing a version. On a
+# tag push a guard asserts the tag matches package.json's version (a manual
+# workflow_dispatch run has no tag, so it skips that check).
 # Requires an NPM_TOKEN repo secret (automation/granular token with publish
 # rights on the @directiveai scope). --provenance needs id-token and a public repo.
 
@@ -26,6 +28,21 @@ jobs:
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
+      # Guard: on a tag push, the tag must match package.json's version, since
+      # that's what actually gets published. Catches the "tagged vX but forgot to
+      # bump package.json" mistake here with a clear message, before the wasted
+      # build/test and the opaque npm "cannot publish over existing version" error.
+      - name: Verify tag matches package.json version
+        if: github.ref_type == 'tag'
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$pkg" != "$tag" ]; then
+            echo "::error title=Version mismatch::Tag ${GITHUB_REF_NAME} (=${tag}) does not match package.json version ${pkg}."
+            echo "Fix: bump \"version\" in package.json and VERSION in src/cli.ts to ${tag} and land it before tagging, or move the tag onto a commit whose version is ${tag}."
+            exit 1
+          fi
+          echo "OK: tag ${GITHUB_REF_NAME} matches package.json version ${pkg}."
       - run: npm ci
       - run: npm run build
       - run: npm test
